@@ -3205,7 +3205,7 @@ void SExpressionWasmBuilder::parseTable(Element& s, bool preParseImport) {
       table->module = inner[1]->str();
       table->base = inner[2]->str();
       i++;
-    } else {
+    } else if (!elementStartsWith(inner, REF)) {
       throw ParseException("invalid table", inner.line, inner.col);
     }
   }
@@ -3227,11 +3227,7 @@ void SExpressionWasmBuilder::parseTable(Element& s, bool preParseImport) {
     }
   }
 
-  if (!s[i]->isStr() || s[i]->str() != FUNCREF) {
-    throw ParseException("Expected funcref");
-  } else {
-    i += 1;
-  }
+  table->type = elementToType(*s[i++]);
 
   if (i < s.size() && s[i]->isList()) {
     if (hasExplicitLimit) {
@@ -3256,14 +3252,16 @@ void SExpressionWasmBuilder::parseTable(Element& s, bool preParseImport) {
 }
 
 // parses an elem segment
-// elem  ::= (elem (expr) vec(funcidx))
-//         | (elem (offset (expr)) func vec(funcidx))
-//         | (elem (table tableidx) (offset (expr)) func vec(funcidx))
-//         | (elem func vec(funcidx))
-//         | (elem declare func vec(funcidx))
+// elem  ::= (elem (table tableidx)? (offset (expr)) reftype vec(item (expr)))
+//         | (elem reftype vec(item (expr)))
+//         | (elem declare reftype vec(item (expr)))
 //
 // abbreviation:
 //   (offset (expr)) ≡ (expr)
+//     (item (expr)) ≡ (expr)
+//                 ϵ ≡ (table 0)
+//
+//        funcref vec(ref.func) ≡ func vec(funcidx)
 //   (elem (expr) vec(funcidx)) ≡ (elem (table 0) (offset (expr)) func
 //                                vec(funcidx))
 //
@@ -3294,7 +3292,7 @@ void SExpressionWasmBuilder::parseElem(Element& s, Table* table) {
   auto segment = std::make_unique<ElementSegment>();
   segment->setName(name, hasExplicitName);
 
-  if (s[i]->isList()) {
+  if (s[i]->isList() && !elementStartsWith(s[i], REF)) {
     // Optional (table <tableidx>)
     if (elementStartsWith(s[i], TABLE)) {
       auto& inner = *s[i++];
@@ -3317,11 +3315,15 @@ void SExpressionWasmBuilder::parseElem(Element& s, Table* table) {
     } else if (s[i]->isStr() && s[i]->str() == FUNC) {
       usesExpressions = false;
       i += 1;
-    } else if (s[i]->isStr() && s[i]->str() == FUNCREF) {
+    } else {
+      segment->type = elementToType(*s[i]);
       usesExpressions = true;
       i += 1;
-    } else {
-      throw ParseException("expected func or funcref.");
+
+      if (segment->type == Type::externref) {
+        throw ParseException(
+          "Invalid externref type for an element segment.", s.line, s.col);
+      }
     }
   }
 

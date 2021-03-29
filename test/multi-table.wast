@@ -1,7 +1,9 @@
 (module
+  (type $none_=>_none (func))
   (import "a" "b" (table $t1 1 10 funcref))
   (table $t2 3 3 funcref)
   (table $t3 4 4 funcref)
+  (table $textern 0 externref)
 
   ;; add to $t1
   (elem (i32.const 0) $f)
@@ -11,9 +13,11 @@
   (elem $activeNonZeroOffset (table $t2) (offset (i32.const 1)) func $f $g)
 
   (elem $e3-1 (table $t3) (i32.const 0) funcref (ref.func $f) (ref.null func))
-  (elem $e3-2 (table $t3) (offset (i32.const 2)) funcref (item ref.func $f) (item (ref.func $g)))
+  (elem $e3-2 (table $t3) (offset (i32.const 2)) (ref null $none_=>_none) (item ref.func $f) (item (ref.func $g)))
 
-  (elem $passive funcref (item ref.func $f) (item (ref.func $g)) (ref.null func))
+  (elem $passive-1 func $f $g)
+  (elem $passive-2 funcref (item ref.func $f) (item (ref.func $g)) (ref.null func))
+  (elem $passive-3 (ref null $none_=>_none) (item ref.func $f) (item (ref.func $g)) (ref.null $none_=>_none))
   (elem $empty func)
   (elem $declarative declare func $h)
 
